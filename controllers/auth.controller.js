@@ -1,7 +1,7 @@
 const Otp = require('../models/Otp');
 const User = require('../models/User');
 const generateOtp = require('../utils/generateOtp');
-const sendEmail = require('../utils/sendEmail');
+const sendBrevoEmail = require('../utils/brevoEmail');
 const jwt = require('jsonwebtoken');
 
 /**
@@ -104,7 +104,7 @@ const sendOtp = async (req, res) => {
     console.log('Background email sending started for:', normalizedEmail);
     setTimeout(async () => {
       try {
-        await sendEmail(normalizedEmail, emailSubject, emailHtml);
+        await sendBrevoEmail(normalizedEmail, emailSubject, emailHtml);
         console.log('OTP email sent successfully:', normalizedEmail);
       } catch (err) {
         console.error('Background OTP email failed:', err.message);
