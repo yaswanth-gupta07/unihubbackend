@@ -113,9 +113,11 @@ const getProducts = async (req, res) => {
       ];
     }
 
+    // Limit results to improve performance (pagination can be added later)
     const products = await Product.find(filter)
       .populate('sellerId', 'name email university')
-      .sort({ createdAt: -1 }); // Newest first
+      .sort({ createdAt: -1 }) // Newest first
+      .limit(50); // Limit to 50 most recent products for better performance
 
     res.status(200).json({
       success: true,

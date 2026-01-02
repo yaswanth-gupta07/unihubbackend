@@ -119,19 +119,33 @@ const getJobs = async (req, res) => {
       }
     }
 
+    // Limit results to improve performance (pagination can be added later)
     const jobs = await Job.find(query)
       .populate('postedBy', 'name email university')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(50) // Limit to 50 most recent jobs for better performance
+      .lean(); // Use lean() for better performance
 
-    // Add proposal count for each job
-    const jobsWithProposals = await Promise.all(
-      jobs.map(async (job) => {
-        const proposalCount = await Application.countDocuments({ jobId: job._id });
-        const jobObj = job.toObject();
-        jobObj.proposalCount = proposalCount;
-        return jobObj;
-      })
-    );
+    // Get all job IDs
+    const jobIds = jobs.map(job => job._id);
+
+    // Get proposal counts in a single aggregation query (much faster than N queries)
+    const proposalCounts = await Application.aggregate([
+      { $match: { jobId: { $in: jobIds } } },
+      { $group: { _id: '$jobId', count: { $sum: 1 } } },
+    ]);
+
+    // Create a map for quick lookup
+    const proposalCountMap = {};
+    proposalCounts.forEach(item => {
+      proposalCountMap[item._id.toString()] = item.count;
+    });
+
+    // Add proposal count to each job
+    const jobsWithProposals = jobs.map(job => ({
+      ...job,
+      proposalCount: proposalCountMap[job._id.toString()] || 0,
+    }));
 
     res.status(200).json({
       success: true,
