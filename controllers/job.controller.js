@@ -119,12 +119,21 @@ const getJobs = async (req, res) => {
       }
     }
 
-    // Limit results to improve performance (pagination can be added later)
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination metadata
+    const total = await Job.countDocuments(query);
+
+    // Fetch jobs with pagination
     const jobs = await Job.find(query)
       .populate('postedBy', 'name email university')
       .sort({ createdAt: -1 })
-      .limit(50) // Limit to 50 most recent jobs for better performance
-      .lean(); // Use lean() for better performance
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
 
     // Get all job IDs
     const jobIds = jobs.map(job => job._id);
@@ -149,7 +158,14 @@ const getJobs = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: { jobs: jobsWithProposals, count: jobsWithProposals.length },
+      data: { 
+        jobs: jobsWithProposals, 
+        count: jobsWithProposals.length,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error('Get jobs error:', error);
@@ -166,14 +182,35 @@ const getJobs = async (req, res) => {
  */
 const getMyJobs = async (req, res) => {
   try {
-    const jobs = await Job.find({ postedBy: req.user._id })
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = { postedBy: req.user._id };
+    
+    // Get total count for pagination metadata
+    const total = await Job.countDocuments(query);
+
+    // Fetch jobs with pagination
+    const jobs = await Job.find(query)
       .populate('postedBy', 'name email university')
       .populate('assignedTo', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
 
     res.status(200).json({
       success: true,
-      data: { jobs, count: jobs.length },
+      data: { 
+        jobs, 
+        count: jobs.length,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error('Get my jobs error:', error);
@@ -201,7 +238,8 @@ const getJobById = async (req, res) => {
 
     const job = await Job.findById(req.params.id)
       .populate('postedBy', 'name email university')
-      .populate('assignedTo', 'name email university');
+      .populate('assignedTo', 'name email university')
+      .lean(); // Use lean() for better performance (read-only query)
 
     if (!job) {
       return res.status(404).json({
@@ -221,8 +259,7 @@ const getJobById = async (req, res) => {
     // Add proposal count
     const Application = require('../models/Application');
     const proposalCount = await Application.countDocuments({ jobId: job._id });
-    const jobObj = job.toObject();
-    jobObj.proposalCount = proposalCount;
+    const jobObj = { ...job, proposalCount };
 
     res.status(200).json({
       success: true,
@@ -252,6 +289,7 @@ const startJob = async (req, res) => {
       });
     }
 
+    // Don't use lean() here - need Mongoose document for .save()
     const job = await Job.findById(req.params.id);
 
     if (!job) {
@@ -277,8 +315,8 @@ const startJob = async (req, res) => {
       });
     }
 
-    // Verify freelancer exists and is from same university
-    const freelancer = await User.findById(freelancerId);
+    // Verify freelancer exists and is from same university (use lean() for read-only check)
+    const freelancer = await User.findById(freelancerId).lean();
     if (!freelancer) {
       return res.status(404).json({
         success: false,
@@ -339,6 +377,7 @@ const startJob = async (req, res) => {
  */
 const completeJob = async (req, res) => {
   try {
+    // Don't use lean() here - need Mongoose document for .save()
     const job = await Job.findById(req.params.id);
 
     if (!job) {
@@ -390,6 +429,7 @@ const completeJob = async (req, res) => {
  */
 const submitWork = async (req, res) => {
   try {
+    // Don't use lean() here - need Mongoose document for .save()
     const job = await Job.findById(req.params.id);
 
     if (!job) {
@@ -442,6 +482,7 @@ const submitWork = async (req, res) => {
  */
 const confirmJob = async (req, res) => {
   try {
+    // Don't use lean() here - need Mongoose document for .save()
     const job = await Job.findById(req.params.id);
 
     if (!job) {
@@ -529,17 +570,37 @@ const getAssignedJobs = async (req, res) => {
       });
     }
 
-    // CAMPUS-ONLY FILTER: Only return jobs from user's university
-    const jobs = await Job.find({ 
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = { 
       assignedTo: req.user._id,
       university: req.user.university, // Ensure campus-only filtering
-    })
+    };
+
+    // Get total count for pagination metadata
+    const total = await Job.countDocuments(query);
+
+    // CAMPUS-ONLY FILTER: Only return jobs from user's university
+    const jobs = await Job.find(query)
       .populate('postedBy', 'name email university')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
 
     res.status(200).json({
       success: true,
-      data: { jobs, count: jobs.length },
+      data: { 
+        jobs, 
+        count: jobs.length,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error('Get assigned jobs error:', error);

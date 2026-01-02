@@ -7,9 +7,22 @@ const Product = require('../models/Product');
  */
 const getWishlist = async (req, res) => {
   try {
-    const wishlistItems = await Wishlist.find({ userId: req.user._id })
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = { userId: req.user._id };
+    
+    // Get total count for pagination metadata
+    const total = await Wishlist.countDocuments(query);
+
+    const wishlistItems = await Wishlist.find(query)
       .populate('productId')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
 
     // Filter out any products that might have been deleted
     const validItems = wishlistItems
@@ -21,6 +34,10 @@ const getWishlist = async (req, res) => {
       data: {
         wishlist: validItems,
         count: validItems.length,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
@@ -47,8 +64,8 @@ const addToWishlist = async (req, res) => {
       });
     }
 
-    // Verify product exists
-    const product = await Product.findById(productId);
+    // Verify product exists (use lean() for read-only check)
+    const product = await Product.findById(productId).lean();
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -56,11 +73,11 @@ const addToWishlist = async (req, res) => {
       });
     }
 
-    // Check if already in wishlist
+    // Check if already in wishlist (use lean() for read-only check)
     const existing = await Wishlist.findOne({
       userId: req.user._id,
       productId: productId,
-    });
+    }).lean();
 
     if (existing) {
       return res.status(200).json({

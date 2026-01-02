@@ -38,8 +38,8 @@ const createApplication = async (req, res) => {
       });
     }
 
-    // Find job
-    const job = await Job.findById(jobId).populate('postedBy', 'name email');
+    // Find job (use lean() for read-only query before checks)
+    const job = await Job.findById(jobId).populate('postedBy', 'name email').lean();
 
     if (!job) {
       return res.status(404).json({
@@ -56,8 +56,9 @@ const createApplication = async (req, res) => {
       });
     }
 
-    // Check if user is trying to apply to their own job
-    if (job.postedBy._id.toString() === req.user._id.toString()) {
+    // Check if user is trying to apply to their own job (handle both populated and ObjectId)
+    const postedById = job.postedBy?._id?.toString() || job.postedBy?.toString();
+    if (postedById === req.user._id.toString()) {
       return res.status(400).json({
         success: false,
         message: 'You cannot apply to your own job',
@@ -72,11 +73,11 @@ const createApplication = async (req, res) => {
       });
     }
 
-    // Check if already applied
+    // Check if already applied (use lean() for read-only check)
     const existingApplication = await Application.findOne({
       jobId,
       freelancerId: req.user._id,
-    });
+    }).lean();
 
     if (existingApplication) {
       return res.status(400).json({
@@ -236,8 +237,18 @@ const getFreelancerApplications = async (req, res) => {
       });
     }
 
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = { freelancerId: req.user._id };
+    
+    // Get total count (will need to filter after populate, so approximate)
+    const totalBeforeFilter = await Application.countDocuments(query);
+
     // CAMPUS-ONLY FILTER: Only return applications for jobs from user's university
-    const applications = await Application.find({ freelancerId: req.user._id })
+    const applications = await Application.find(query)
       .select('coverLetter budget pricingType deliveryDays skills portfolioLink phone agreementAccepted status createdAt message')
       .populate({
         path: 'jobId',
@@ -248,14 +259,25 @@ const getFreelancerApplications = async (req, res) => {
           select: 'name email university',
         },
       })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
 
     // Filter out applications where jobId is null (due to university mismatch)
     const filteredApplications = applications.filter(app => app.jobId !== null);
+    const total = filteredApplications.length; // Approximate after filtering
 
     res.status(200).json({
       success: true,
-      data: { applications: filteredApplications, count: filteredApplications.length },
+      data: { 
+        applications: filteredApplications, 
+        count: filteredApplications.length,
+        total: totalBeforeFilter, // Use approximate total
+        page,
+        limit,
+        totalPages: Math.ceil(totalBeforeFilter / limit),
+      },
     });
   } catch (error) {
     console.error('Get freelancer applications error:', error);
@@ -288,9 +310,19 @@ const getClientApplications = async (req, res) => {
     }).select('_id');
     const jobIds = jobs.map(job => job._id);
 
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = { jobId: { $in: jobIds } };
+    
+    // Get total count (will need to filter after populate, so approximate)
+    const totalBeforeFilter = await Application.countDocuments(query);
+
     // Find all applications for these jobs
     // Also filter freelancers by university to ensure campus-only
-    const applications = await Application.find({ jobId: { $in: jobIds } })
+    const applications = await Application.find(query)
       .select('coverLetter budget pricingType deliveryDays skills portfolioLink phone agreementAccepted status createdAt message')
       .populate({
         path: 'jobId',
@@ -302,7 +334,10 @@ const getClientApplications = async (req, res) => {
         match: { university: req.user.university }, // Only freelancers from same university
         select: 'name email university skills about',
       })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
 
     // Filter out applications where jobId or freelancerId is null (due to university mismatch)
     const filteredApplications = applications.filter(
@@ -311,7 +346,14 @@ const getClientApplications = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: { applications: filteredApplications, count: filteredApplications.length },
+      data: { 
+        applications: filteredApplications, 
+        count: filteredApplications.length,
+        total: totalBeforeFilter, // Use approximate total
+        page,
+        limit,
+        totalPages: Math.ceil(totalBeforeFilter / limit),
+      },
     });
   } catch (error) {
     console.error('Get client applications error:', error);
@@ -330,7 +372,7 @@ const deleteApplication = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Find the application
+    // Don't use lean() - need Mongoose document for .save()
     const application = await Application.findById(id);
 
     if (!application) {
@@ -340,8 +382,8 @@ const deleteApplication = async (req, res) => {
       });
     }
 
-    // Check if the user is the client (job owner) or the freelancer who applied
-    const job = await Job.findById(application.jobId);
+    // Check if the user is the client (job owner) or the freelancer who applied (use lean() for read-only check)
+    const job = await Job.findById(application.jobId).lean();
     
     if (!job) {
       return res.status(404).json({
@@ -350,7 +392,8 @@ const deleteApplication = async (req, res) => {
       });
     }
 
-    const isClient = job.postedBy.toString() === req.user._id.toString();
+    const postedById = job.postedBy?._id?.toString() || job.postedBy?.toString();
+    const isClient = postedById === req.user._id.toString();
     const isFreelancer = application.freelancerId.toString() === req.user._id.toString();
 
     if (!isClient && !isFreelancer) {

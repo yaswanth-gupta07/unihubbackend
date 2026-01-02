@@ -66,6 +66,12 @@ const jobSchema = new mongoose.Schema(
 // Compound indexes for common queries
 jobSchema.index({ university: 1, status: 1 });
 jobSchema.index({ postedBy: 1, status: 1 });
+// Index for assignedTo (freelancer) queries
+jobSchema.index({ assignedTo: 1, status: 1 });
+// Index for createdAt descending (sorting feed results)
+jobSchema.index({ createdAt: -1 });
+// Compound index for university + createdAt (feed queries)
+jobSchema.index({ university: 1, status: 1, createdAt: -1 });
 
 const Job = mongoose.model('Job', jobSchema);
 

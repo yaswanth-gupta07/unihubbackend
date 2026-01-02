@@ -39,6 +39,8 @@ const reviewSchema = new mongoose.Schema(
 
 // Ensure one review per job
 reviewSchema.index({ jobId: 1 }, { unique: true });
+// Index for freelancer reviews
+reviewSchema.index({ freelancerId: 1, createdAt: -1 });
 
 const Review = mongoose.model('Review', reviewSchema);
 

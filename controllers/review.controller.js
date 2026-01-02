@@ -23,10 +23,11 @@ const createReview = async (req, res) => {
       });
     }
 
-    // Get the job
+    // Get the job (use lean() for read-only query)
     const job = await Job.findById(jobId)
       .populate('assignedTo', '_id')
-      .populate('postedBy', '_id');
+      .populate('postedBy', '_id')
+      .lean();
 
     if (!job) {
       return res.status(404).json({
@@ -35,8 +36,9 @@ const createReview = async (req, res) => {
       });
     }
 
-    // Check if user is the job owner (client)
-    if (job.postedBy._id.toString() !== req.user._id.toString()) {
+    // Check if user is the job owner (client) - handle both populated and ObjectId
+    const postedById = job.postedBy?._id?.toString() || job.postedBy?.toString();
+    if (postedById !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Only the job owner can create a review',
@@ -51,8 +53,8 @@ const createReview = async (req, res) => {
       });
     }
 
-    // Check if review already exists
-    const existingReview = await Review.findOne({ jobId });
+    // Check if review already exists (use lean() for read-only check)
+    const existingReview = await Review.findOne({ jobId }).lean();
     if (existingReview) {
       return res.status(400).json({
         success: false,
@@ -68,18 +70,24 @@ const createReview = async (req, res) => {
       });
     }
 
+    // Get freelancer ID (handle both populated and ObjectId)
+    const freelancerId = job.assignedTo?._id?.toString() || job.assignedTo?.toString();
+
     // Create review
     const review = await Review.create({
       jobId,
-      freelancerId: job.assignedTo._id,
+      freelancerId: freelancerId,
       clientId: req.user._id,
       rating,
       comment: comment || '',
     });
 
-    // Update job status to CLOSED after review is created
-    job.status = 'CLOSED';
-    await job.save();
+    // Update job status to CLOSED after review is created (need to fetch as document for .save())
+    const jobDoc = await Job.findById(jobId);
+    if (jobDoc) {
+      jobDoc.status = 'CLOSED';
+      await jobDoc.save();
+    }
 
     await review.populate('freelancerId', 'name email');
     await review.populate('clientId', 'name email');
@@ -112,10 +120,23 @@ const getFreelancerReviews = async (req, res) => {
   try {
     const { freelancerId } = req.params;
 
-    const reviews = await Review.find({ freelancerId })
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = { freelancerId };
+    
+    // Get total count for pagination metadata
+    const total = await Review.countDocuments(query);
+
+    const reviews = await Review.find(query)
       .populate('clientId', 'name email')
       .populate('jobId', 'title')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
 
     // Calculate average rating
     const avgRating =
@@ -129,6 +150,10 @@ const getFreelancerReviews = async (req, res) => {
         reviews,
         averageRating: avgRating,
         totalReviews: reviews.length,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
@@ -151,7 +176,8 @@ const getJobReview = async (req, res) => {
     const review = await Review.findOne({ jobId })
       .populate('freelancerId', 'name email')
       .populate('clientId', 'name email')
-      .populate('jobId', 'title');
+      .populate('jobId', 'title')
+      .lean(); // Use lean() for better performance (read-only query)
 
     if (!review) {
       return res.status(404).json({

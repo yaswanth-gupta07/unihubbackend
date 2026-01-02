@@ -66,6 +66,10 @@ const applicationSchema = new mongoose.Schema(
 
 // Compound index to prevent duplicate applications
 applicationSchema.index({ jobId: 1, freelancerId: 1 }, { unique: true });
+// Index for freelancer queries
+applicationSchema.index({ freelancerId: 1, createdAt: -1 });
+// Index for job queries (client view)
+applicationSchema.index({ jobId: 1, createdAt: -1 });
 
 const Application = mongoose.model('Application', applicationSchema);
 

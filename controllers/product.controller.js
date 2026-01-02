@@ -2,6 +2,7 @@ const Product = require('../models/Product');
 const BuyerInterest = require('../models/BuyerInterest');
 const User = require('../models/User');
 const sendEmail = require('../utils/sendEmail');
+const { optimizeCloudinaryUrls } = require('../utils/cloudinaryOptimize');
 
 /**
  * Create a new product
@@ -113,15 +114,42 @@ const getProducts = async (req, res) => {
       ];
     }
 
-    // Limit results to improve performance (pagination can be added later)
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination metadata
+    const total = await Product.countDocuments(filter);
+
+    // Fetch products with pagination
     const products = await Product.find(filter)
       .populate('sellerId', 'name email university')
       .sort({ createdAt: -1 }) // Newest first
-      .limit(50); // Limit to 50 most recent products for better performance
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
+
+    // Optimize Cloudinary image URLs for faster loading
+    const optimizedProducts = products.map(product => ({
+      ...product,
+      images: optimizeCloudinaryUrls(product.images || []),
+      sellerId: product.sellerId ? {
+        ...product.sellerId,
+        profileImage: product.sellerId.profileImage ? require('../utils/cloudinaryOptimize').optimizeCloudinaryUrl(product.sellerId.profileImage) : product.sellerId.profileImage,
+      } : product.sellerId,
+    }));
 
     res.status(200).json({
       success: true,
-      data: { products, count: products.length },
+      data: { 
+        products: optimizedProducts, 
+        count: optimizedProducts.length,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error('Get products error:', error);
@@ -148,7 +176,8 @@ const getProductById = async (req, res) => {
     }
 
     const product = await Product.findById(req.params.id)
-      .populate('sellerId', 'name email university');
+      .populate('sellerId', 'name email university')
+      .lean(); // Use lean() for better performance (read-only query)
 
     if (!product) {
       return res.status(404).json({
@@ -165,9 +194,19 @@ const getProductById = async (req, res) => {
       });
     }
 
+    // Optimize Cloudinary image URLs for faster loading
+    const optimizedProduct = {
+      ...product,
+      images: optimizeCloudinaryUrls(product.images || []),
+      sellerId: product.sellerId ? {
+        ...product.sellerId,
+        profileImage: product.sellerId.profileImage ? require('../utils/cloudinaryOptimize').optimizeCloudinaryUrl(product.sellerId.profileImage) : product.sellerId.profileImage,
+      } : product.sellerId,
+    };
+
     res.status(200).json({
       success: true,
-      data: { product },
+      data: { product: optimizedProduct },
     });
   } catch (error) {
     console.error('Get product by ID error:', error);
@@ -190,15 +229,29 @@ const getProductById = async (req, res) => {
  */
 const getMyProducts = async (req, res) => {
   try {
-    const products = await Product.find({ sellerId: req.user._id })
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = { sellerId: req.user._id };
+    
+    // Get total count for pagination metadata
+    const total = await Product.countDocuments(query);
+
+    const products = await Product.find(query)
       .populate('sellerId', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance (read-only query)
 
     // Get interested buyers for all products
     const productIds = products.map(p => p._id);
     const interests = await BuyerInterest.find({ productId: { $in: productIds } })
       .populate('buyerId', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean(); // Use lean() for better performance (read-only query)
 
     // Group interests by productId
     const interestsByProduct = {};
@@ -210,20 +263,24 @@ const getMyProducts = async (req, res) => {
       interestsByProduct[productId].push({
         _id: interest._id,
         buyerId: interest.buyerId,
-        buyerName: interest.buyerId.name || interest.buyerId.email,
-        buyerEmail: interest.buyerId.email,
+        buyerName: interest.buyerId?.name || interest.buyerId?.email,
+        buyerEmail: interest.buyerId?.email,
         phone: interest.phone,
         message: interest.message,
         createdAt: interest.createdAt,
       });
     });
 
-    // Add interests to products
-    const productsWithInterests = products.map(product => {
-      const productObj = product.toObject();
-      productObj.interestedBuyers = interestsByProduct[product._id.toString()] || [];
-      return productObj;
-    });
+    // Add interests to products and optimize images
+    const productsWithInterests = products.map(product => ({
+      ...product,
+      images: optimizeCloudinaryUrls(product.images || []),
+      sellerId: product.sellerId ? {
+        ...product.sellerId,
+        profileImage: product.sellerId.profileImage ? require('../utils/cloudinaryOptimize').optimizeCloudinaryUrl(product.sellerId.profileImage) : product.sellerId.profileImage,
+      } : product.sellerId,
+      interestedBuyers: interestsByProduct[product._id.toString()] || [],
+    }));
 
     // Group products by status
     const active = productsWithInterests.filter(p => 
@@ -240,6 +297,12 @@ const getMyProducts = async (req, res) => {
           active: active.length,
           sold: sold.length,
           total: products.length,
+        },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
         },
       },
     });
@@ -263,6 +326,7 @@ const updateProduct = async (req, res) => {
   try {
     const { title, description, price, category, condition, images } = req.body;
 
+    // Don't use lean() here - need Mongoose document for .save()
     const product = await Product.findById(req.params.id);
 
     if (!product) {
@@ -398,8 +462,9 @@ const markProductSold = async (req, res) => {
       });
     }
 
-    // Check if user is the seller
-    if (product.sellerId._id.toString() !== req.user._id.toString()) {
+    // Check if user is the seller (handle both populated and ObjectId)
+    const sellerId = product.sellerId?._id?.toString() || product.sellerId?.toString();
+    if (sellerId !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Only the seller can mark product as sold',

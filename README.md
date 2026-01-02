@@ -39,7 +39,6 @@ This is a **full-stack application** with:
 - **Database**: MongoDB with Mongoose ODM
 - **Image Storage**: Cloudinary
 - **Authentication**: JWT tokens
-- **Email Service**: Nodemailer (Gmail SMTP)
 
 ---
 

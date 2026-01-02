@@ -59,6 +59,12 @@ const productSchema = new mongoose.Schema(
 productSchema.index({ universityId: 1, status: 1 });
 productSchema.index({ universityId: 1, sellerId: 1, status: 1 });
 productSchema.index({ category: 1, universityId: 1, status: 1 });
+// Index for category queries
+productSchema.index({ category: 1, status: 1 });
+// Index for createdAt descending (sorting feed results)
+productSchema.index({ createdAt: -1 });
+// Compound index for university + createdAt (feed queries)
+productSchema.index({ universityId: 1, createdAt: -1 });
 
 const Product = mongoose.model('Product', productSchema);
 
