@@ -76,7 +76,7 @@ const showInterest = async (req, res) => {
     // Populate buyer info for email
     await buyerInterest.populate('buyerId', 'name email');
 
-    // 2) Send email to seller
+    // 2) Send email to seller (non-blocking - don't wait for it)
     const sellerEmail = product.sellerId.email;
     const sellerName = product.sellerId.name || 'Seller';
     const buyerName = req.user.name || req.user.email;
@@ -164,16 +164,16 @@ const showInterest = async (req, res) => {
       </html>
     `;
 
-    try {
-      await sendEmail(sellerEmail, emailSubject, emailHtml);
-    } catch (emailError) {
+    // Send email in background (non-blocking) - don't wait for it
+    sendEmail(sellerEmail, emailSubject, emailHtml).catch((emailError) => {
       console.error('Failed to send interest email:', emailError);
-      // Don't fail the request if email fails, but log it
-    }
+      // Email failure doesn't affect the response
+    });
 
+    // Return success immediately after saving to DB
     res.status(200).json({
       success: true,
-      message: 'Interest notification sent to seller via email',
+      message: 'Interest sent successfully. Seller will be notified.',
       data: { buyerInterest },
     });
   } catch (error) {
