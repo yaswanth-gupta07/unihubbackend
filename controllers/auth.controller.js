@@ -12,6 +12,8 @@ const sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
 
+    console.log('OTP request received for email:', email);
+
     // Validate email
     if (!email || !email.includes('@')) {
       return res.status(400).json({
@@ -24,6 +26,7 @@ const sendOtp = async (req, res) => {
 
     // Generate 6-digit OTP
     const otpCode = generateOtp();
+    console.log('OTP generated for:', normalizedEmail);
 
     // Set expiry to 5 minutes from now
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -38,7 +41,7 @@ const sendOtp = async (req, res) => {
       expiresAt,
     });
 
-    // Send OTP email
+    // Prepare email content
     const emailSubject = 'Your UniHub Login OTP';
     const emailHtml = `
       <!DOCTYPE html>
@@ -97,11 +100,22 @@ const sendOtp = async (req, res) => {
       </html>
     `;
 
-    await sendEmail(normalizedEmail, emailSubject, emailHtml);
+    // Send email in background (non-blocking)
+    console.log('Background email sending started for:', normalizedEmail);
+    setTimeout(async () => {
+      try {
+        await sendEmail(normalizedEmail, emailSubject, emailHtml);
+        console.log('OTP email sent successfully:', normalizedEmail);
+      } catch (err) {
+        console.error('Background OTP email failed:', err.message);
+        // Email failure does not block the API response
+      }
+    }, 0);
 
+    // Return response immediately without waiting for email
     res.status(200).json({
       success: true,
-      message: 'OTP sent successfully to your email',
+      message: 'OTP generated and email will be sent shortly',
     });
   } catch (error) {
     console.error('Send OTP error:', error);
