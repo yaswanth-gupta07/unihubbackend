@@ -98,9 +98,10 @@ PORT=5000
 NODE_ENV=development
 
 # MongoDB Configuration
-MONGODB_URI=mongodb://localhost:27017/unihub
-# OR use MongoDB Atlas:
-# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/unihub
+# For MongoDB Atlas (Cloud - Recommended):
+MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/unihub?retryWrites=true&w=majority
+# OR for local development (fallback if MONGO_URI not set):
+# MONGO_URI=mongodb://127.0.0.1:27017/unihub
 
 # JWT Configuration
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
@@ -473,8 +474,9 @@ All data (jobs, products) is automatically filtered by the user's university. Us
 ### Backend Issues
 
 **MongoDB Connection Error**
-- Ensure MongoDB is running: `mongod` or check MongoDB Atlas connection string
-- Verify `MONGODB_URI` in `.env` is correct
+- Ensure MongoDB is running: `mongod` (for local) or check MongoDB Atlas connection string (for cloud)
+- Verify `MONGO_URI` in `.env` is correct
+- For MongoDB Atlas, ensure your IP is whitelisted in Network Access settings
 
 **Email Not Sending**
 - Check Gmail app password is correct
@@ -516,7 +518,7 @@ All data (jobs, products) is automatically filtered by the user's university. Us
 |----------|-------------|---------|
 | `PORT` | Server port | `5000` |
 | `NODE_ENV` | Environment mode | `development` or `production` |
-| `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/unihub` |
+| `MONGO_URI` | MongoDB connection string (cloud or local) | `mongodb+srv://user:pass@cluster.mongodb.net/unihub` |
 | `JWT_SECRET` | Secret key for JWT tokens | `your_secret_key_here` |
 | `JWT_EXPIRES_IN` | JWT token expiration | `7d` |
 | `EMAIL_HOST` | SMTP server | `smtp.gmail.com` |
