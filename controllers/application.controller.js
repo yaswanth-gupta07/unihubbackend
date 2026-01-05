@@ -192,16 +192,19 @@ const createApplication = async (req, res) => {
       </html>
     `;
 
-    try {
-      await sendEmail(clientEmail, emailSubject, emailHtml);
-    } catch (emailError) {
-      console.error('Failed to send application email:', emailError);
-      // Don't fail the request if email fails, but log it
-    }
+    // Send email notification in background (non-blocking)
+    // Don't wait for email to complete - respond immediately
+    setImmediate(() => {
+      sendEmail(clientEmail, emailSubject, emailHtml).catch((emailError) => {
+        console.error('Failed to send application email:', emailError);
+        // Email failure doesn't affect the response
+      });
+    });
 
+    // Respond immediately without waiting for email
     res.status(201).json({
       success: true,
-      message: 'Application submitted successfully. The job owner has been notified via email.',
+      message: 'Application submitted successfully. The job owner will be notified via email.',
       data: { application },
     });
   } catch (error) {
