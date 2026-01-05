@@ -1,8 +1,10 @@
 const Otp = require('../models/Otp');
 const User = require('../models/User');
+const RefreshToken = require('../models/RefreshToken');
 const generateOtp = require('../utils/generateOtp');
 const sendBrevoEmail = require('../utils/brevoEmail');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 /**
  * Send OTP to user's email
@@ -176,12 +178,24 @@ const verifyOtp = async (req, res) => {
       });
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
+    // Generate access token (24 hours)
+    const accessToken = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: '24h' }
     );
+
+    // Generate refresh token (30 days)
+    const refreshTokenValue = crypto.randomBytes(64).toString('hex');
+    const refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    // Save refresh token to database
+    await RefreshToken.create({
+      userId: user._id,
+      token: refreshTokenValue,
+      expiresAt: refreshTokenExpiry,
+      isRevoked: false,
+    });
 
     // Delete OTP after successful verification
     await Otp.deleteOne({ _id: otpRecord._id });
@@ -190,7 +204,8 @@ const verifyOtp = async (req, res) => {
       success: true,
       message: 'OTP verified successfully',
       data: {
-        token,
+        accessToken,
+        refreshToken: refreshTokenValue,
         user: {
           _id: user._id,
           email: user.email,
@@ -211,8 +226,133 @@ const verifyOtp = async (req, res) => {
   }
 };
 
+/**
+ * Refresh access token using refresh token
+ * POST /api/auth/refresh-token
+ */
+const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken: refreshTokenValue } = req.body;
+
+    if (!refreshTokenValue) {
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token is required',
+      });
+    }
+
+    // Find refresh token in database
+    const refreshTokenRecord = await RefreshToken.findOne({
+      token: refreshTokenValue,
+      isRevoked: false,
+    });
+
+    if (!refreshTokenRecord) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or revoked refresh token',
+      });
+    }
+
+    // Check if refresh token is expired
+    if (new Date() > refreshTokenRecord.expiresAt) {
+      await RefreshToken.deleteOne({ _id: refreshTokenRecord._id });
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token has expired. Please login again.',
+      });
+    }
+
+    // Get user
+    const user = await User.findById(refreshTokenRecord.userId);
+
+    if (!user) {
+      await RefreshToken.deleteOne({ _id: refreshTokenRecord._id });
+      return res.status(401).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Generate new access token (24 hours)
+    const accessToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Token refreshed successfully',
+      data: {
+        accessToken,
+        user: {
+          _id: user._id,
+          email: user.email,
+          name: user.name,
+          university: user.university,
+          skills: user.skills,
+          about: user.about,
+          profileComplete: !!(user.name && user.university && user.skills.length > 0 && user.about),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to refresh token',
+    });
+  }
+};
+
+/**
+ * Logout - invalidate refresh token
+ * POST /api/auth/logout
+ * Note: This endpoint doesn't require authentication to allow logout even with expired tokens
+ */
+const logout = async (req, res) => {
+  try {
+    const { refreshToken: refreshTokenValue } = req.body;
+
+    if (refreshTokenValue) {
+      // Find and revoke refresh token
+      const refreshTokenRecord = await RefreshToken.findOne({
+        token: refreshTokenValue,
+      });
+
+      if (refreshTokenRecord) {
+        refreshTokenRecord.isRevoked = true;
+        await refreshTokenRecord.save();
+      }
+    }
+
+    // If user is authenticated, also revoke all refresh tokens for this user (optional - for security)
+    // Uncomment if you want to logout from all devices when user explicitly logs out
+    // if (req.user && req.user._id) {
+    //   await RefreshToken.updateMany(
+    //     { userId: req.user._id },
+    //     { isRevoked: true }
+    //   );
+    // }
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to logout',
+    });
+  }
+};
+
 module.exports = {
   sendOtp,
   verifyOtp,
+  refreshToken,
+  logout,
 };
 
