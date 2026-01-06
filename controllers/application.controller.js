@@ -1,7 +1,7 @@
 const Application = require('../models/Application');
 const Job = require('../models/Job');
 const User = require('../models/User');
-const sendEmail = require('../utils/sendEmail');
+const sendBrevoEmail = require('../utils/brevoEmail');
 
 /**
  * Apply for a job
@@ -195,7 +195,7 @@ const createApplication = async (req, res) => {
     // Send email notification in background (non-blocking)
     // Don't wait for email to complete - respond immediately
     setImmediate(() => {
-      sendEmail(clientEmail, emailSubject, emailHtml).catch((emailError) => {
+      sendBrevoEmail(clientEmail, emailSubject, emailHtml).catch((emailError) => {
         console.error('Failed to send application email:', emailError);
         // Email failure doesn't affect the response
       });
