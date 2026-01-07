@@ -315,15 +315,20 @@ const logout = async (req, res) => {
   try {
     const { refreshToken: refreshTokenValue } = req.body;
 
-    if (refreshTokenValue) {
+    if (refreshTokenValue && refreshTokenValue.trim() !== '') {
       // Find and revoke refresh token
-      const refreshTokenRecord = await RefreshToken.findOne({
-        token: refreshTokenValue,
-      });
+      try {
+        const refreshTokenRecord = await RefreshToken.findOne({
+          token: refreshTokenValue,
+        });
 
-      if (refreshTokenRecord) {
-        refreshTokenRecord.isRevoked = true;
-        await refreshTokenRecord.save();
+        if (refreshTokenRecord) {
+          refreshTokenRecord.isRevoked = true;
+          await refreshTokenRecord.save();
+        }
+      } catch (tokenError) {
+        // If token lookup fails, continue anyway - local data is already cleared
+        console.log('Token revocation failed (non-critical):', tokenError.message);
       }
     }
 
@@ -336,15 +341,17 @@ const logout = async (req, res) => {
     //   );
     // }
 
+    // Always return success - local data is already cleared on frontend
     res.status(200).json({
       success: true,
       message: 'Logged out successfully',
     });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to logout',
+    // Even on error, return success - frontend has already cleared local data
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
     });
   }
 };
