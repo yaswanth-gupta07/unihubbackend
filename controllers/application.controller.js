@@ -113,83 +113,133 @@ const createApplication = async (req, res) => {
 
     const emailSubject = 'New Application for Your Job on UniHub';
     const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              max-width: 600px;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            .container {
-              background-color: #f9f9f9;
-              padding: 30px;
-              border-radius: 10px;
-              border: 1px solid #ddd;
-            }
-            .header {
-              background-color: #4CAF50;
-              color: white;
-              padding: 20px;
-              border-radius: 5px;
-              margin-bottom: 20px;
-            }
-            .info-section {
-              background-color: #fff;
-              padding: 15px;
-              border-radius: 5px;
-              margin: 15px 0;
-              border-left: 4px solid #4CAF50;
-            }
-            .label {
-              font-weight: bold;
-              color: #555;
-            }
-            .footer {
-              margin-top: 30px;
-              padding-top: 20px;
-              border-top: 1px solid #ddd;
-              font-size: 12px;
-              color: #666;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2>New Job Application</h2>
-            </div>
-            <p>Hello ${clientName},</p>
-            <p>You have received a new application for your job posting on UniHub.</p>
-            
-            <div class="info-section">
-              <p><span class="label">Job Title:</span> ${job.title}</p>
-            </div>
-            
-            <div class="info-section">
-              <p><span class="label">Freelancer Name:</span> ${freelancerName}</p>
-              <p><span class="label">Freelancer Email:</span> ${freelancerEmail}</p>
-              ${phone ? `<p><span class="label">Phone:</span> ${phone}</p>` : ''}
-            </div>
-            
-            <div class="info-section">
-              <p><span class="label">Message:</span></p>
-              <p>${message}</p>
-            </div>
-            
-            <p>Please log in to your UniHub app to view all applications and manage your job posting.</p>
-            
-            <div class="footer">
-              <p>© UniHub - Connecting University Communities</p>
-            </div>
-          </div>
-        </body>
-      </html>
+        <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .container {
+        background-color: #f9f9f9;
+        padding: 30px;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+      }
+
+      .header {
+        background-color: #4CAF50;
+        color: white;
+        padding: 20px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      /* 🔥 Job title highlight */
+      .job-title-box {
+        background: #e8f5e9;
+        border: 2px solid #4CAF50;
+        padding: 18px;
+        border-radius: 8px;
+        text-align: center;
+        margin: 20px 0;
+      }
+
+      .job-title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #2e7d32;
+      }
+
+      /* 🔥 Freelancer details highlight */
+      .freelancer-box {
+        background-color: #ffffff;
+        padding: 18px;
+        border-radius: 8px;
+        margin: 20px 0;
+        border-left: 5px solid #2196F3;
+      }
+
+      .freelancer-heading {
+        font-size: 16px;
+        font-weight: bold;
+        color: #1565c0;
+        margin-bottom: 10px;
+      }
+
+      .info-section {
+        background-color: #fff;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+        border-left: 4px solid #4CAF50;
+      }
+
+      .label {
+        font-weight: bold;
+        color: #555;
+      }
+
+      .footer {
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #ddd;
+        font-size: 12px;
+        color: #666;
+        text-align: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="header">
+        <h2>New Job Application</h2>
+      </div>
+
+      <p>Hello <strong>${clientName}</strong>,</p>
+      <p>You have received a new application for your job posting on <strong>UniHub</strong>.</p>
+
+      <!-- ✅ Highlighted Job Title -->
+      <div class="job-title-box">
+        <div class="label">Job Title</div>
+        <div class="job-title">${job.title}</div>
+      </div>
+
+      <!-- ✅ Highlighted Freelancer Details -->
+      <div class="freelancer-box">
+        <div class="freelancer-heading">Freelancer Details</div>
+        <p><span class="label">Name:</span> ${freelancerName}</p>
+        <p><span class="label">Email:</span> ${freelancerEmail}</p>
+        ${phone ? `<p><span class="label">Phone:</span> ${phone}</p>` : ''}
+      </div>
+
+      <!-- Message -->
+      <div class="info-section">
+        <p><span class="label">Message from Freelancer:</span></p>
+        <p>${message}</p>
+      </div>
+
+      <p>
+        Please log in to your <strong>UniHub app</strong> to view all applications
+        and manage your job posting.
+      </p>
+
+      <div class="footer">
+        <p>© UniHub – Connecting University Communities</p>
+      </div>
+    </div>
+  </body>
+</html>
+
     `;
 
     // Send email notification in background (non-blocking)
