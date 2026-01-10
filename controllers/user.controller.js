@@ -200,7 +200,7 @@ const requestUniversityVerification = async (req, res) => {
     }
 
     // Check if user has university set
-    if (!user.university) {
+    if (!user.university || user.university.trim() === '') {
       return res.status(400).json({
         success: false,
         message: 'Please set your university in profile first',
@@ -216,15 +216,24 @@ const requestUniversityVerification = async (req, res) => {
     }
 
     // Validate email domain based on university
+    // Normalize university value to handle variations (SRM_AP, SRM AP, SRMAP, etc.)
+    const normalizedUniversity = user.university.trim().toUpperCase().replace(/\s+/g, '_');
+    
     let expectedDomain = '';
-    if (user.university === 'SRM_AP') {
+    let universityDisplayName = '';
+    
+    if (normalizedUniversity === 'SRM_AP' || normalizedUniversity === 'SRMAP') {
       expectedDomain = '@srmap.edu.in';
-    } else if (user.university === 'KLU') {
+      universityDisplayName = 'SRM AP';
+    } else if (normalizedUniversity === 'KLU') {
       expectedDomain = '@kluniversity.in';
+      universityDisplayName = 'KLU';
     } else {
+      // Log the actual university value for debugging
+      console.log('Invalid university value:', user.university, 'Normalized:', normalizedUniversity);
       return res.status(400).json({
         success: false,
-        message: 'Invalid university. Only SRM AP and KLU are supported.',
+        message: `Invalid university "${user.university}". Only SRM AP and KLU are supported. Please update your profile with a valid university.`,
       });
     }
 
@@ -232,7 +241,7 @@ const requestUniversityVerification = async (req, res) => {
     if (!normalizedEmail.endsWith(expectedDomain)) {
       return res.status(400).json({
         success: false,
-        message: `Email must end with ${expectedDomain} for ${user.university === 'SRM_AP' ? 'SRM AP' : 'KLU'}`,
+        message: `Email must end with ${expectedDomain} for ${universityDisplayName}`,
       });
     }
 
