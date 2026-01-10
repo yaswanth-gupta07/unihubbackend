@@ -385,7 +385,7 @@ const getClientApplications = async (req, res) => {
       .populate({
         path: 'freelancerId',
         match: { university: req.user.university }, // Only freelancers from same university
-        select: 'name email university skills about',
+        select: 'name email university universityEmail isUniversityVerified skills about',
       })
       .sort({ createdAt: -1 })
       .skip(skip)

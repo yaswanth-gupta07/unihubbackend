@@ -16,8 +16,34 @@ const userSchema = new mongoose.Schema(
     },
     university: {
       type: String,
+      enum: ['SRM_AP', 'KLU'],
       trim: true,
       index: true, // Indexed for faster queries
+    },
+    universityEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+    },
+    isUniversityVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    universityVerificationOtp: {
+      type: String,
+      default: null,
+    },
+    universityVerificationOtpExpiry: {
+      type: Date,
+      default: null,
+    },
+    pendingUniversityEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
     },
     skills: {
       type: [String],

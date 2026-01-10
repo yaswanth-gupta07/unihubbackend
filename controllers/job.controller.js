@@ -129,7 +129,7 @@ const getJobs = async (req, res) => {
 
     // Fetch jobs with pagination
     const jobs = await Job.find(query)
-      .populate('postedBy', 'name email university')
+      .populate('postedBy', 'name email university isUniversityVerified')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -194,7 +194,7 @@ const getMyJobs = async (req, res) => {
 
     // Fetch jobs with pagination
     const jobs = await Job.find(query)
-      .populate('postedBy', 'name email university')
+      .populate('postedBy', 'name email university isUniversityVerified')
       .populate('assignedTo', 'name email')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -237,8 +237,8 @@ const getJobById = async (req, res) => {
     }
 
     const job = await Job.findById(req.params.id)
-      .populate('postedBy', 'name email university')
-      .populate('assignedTo', 'name email university')
+      .populate('postedBy', 'name email university isUniversityVerified')
+      .populate('assignedTo', 'name email university isUniversityVerified')
       .lean(); // Use lean() for better performance (read-only query)
 
     if (!job) {
@@ -459,7 +459,7 @@ const submitWork = async (req, res) => {
     job.status = 'COMPLETED';
     await job.save();
 
-    await job.populate('postedBy', 'name email university');
+    await job.populate('postedBy', 'name email university isUniversityVerified');
     await job.populate('assignedTo', 'name email university');
 
     res.status(200).json({
@@ -512,7 +512,7 @@ const confirmJob = async (req, res) => {
     job.status = 'CLOSED';
     await job.save();
 
-    await job.populate('postedBy', 'name email university');
+    await job.populate('postedBy', 'name email university isUniversityVerified');
 
     res.status(200).json({
       success: true,
@@ -585,7 +585,7 @@ const getAssignedJobs = async (req, res) => {
 
     // CAMPUS-ONLY FILTER: Only return jobs from user's university
     const jobs = await Job.find(query)
-      .populate('postedBy', 'name email university')
+      .populate('postedBy', 'name email university isUniversityVerified')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
