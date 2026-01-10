@@ -179,9 +179,12 @@ const updateProfile = async (req, res) => {
  */
 const requestUniversityVerification = async (req, res) => {
   try {
+    console.log('📧 University verification request received');
     const { universityEmail } = req.body;
+    console.log('📧 Email received:', universityEmail);
 
     if (!universityEmail || typeof universityEmail !== 'string') {
+      console.log('❌ Email validation failed');
       return res.status(400).json({
         success: false,
         message: 'University email is required',
@@ -189,18 +192,24 @@ const requestUniversityVerification = async (req, res) => {
     }
 
     const normalizedEmail = universityEmail.toLowerCase().trim();
+    console.log('📧 Normalized email:', normalizedEmail);
 
     // Get user with current university
+    console.log('📧 Fetching user:', req.user._id);
     const user = await User.findById(req.user._id);
     if (!user) {
+      console.log('❌ User not found');
       return res.status(404).json({
         success: false,
         message: 'User not found',
       });
     }
 
+    console.log('📧 User university:', user.university);
+
     // Check if user has university set
     if (!user.university || user.university.trim() === '') {
+      console.log('❌ University not set');
       return res.status(400).json({
         success: false,
         message: 'Please set your university in profile first',
@@ -209,6 +218,7 @@ const requestUniversityVerification = async (req, res) => {
 
     // Check if already verified
     if (user.isUniversityVerified) {
+      console.log('❌ Already verified');
       return res.status(400).json({
         success: false,
         message: 'University email is already verified',
@@ -218,6 +228,7 @@ const requestUniversityVerification = async (req, res) => {
     // Validate email domain based on university
     // Normalize university value to handle variations (SRM_AP, SRM AP, SRMAP, etc.)
     const normalizedUniversity = user.university.trim().toUpperCase().replace(/\s+/g, '_');
+    console.log('📧 Normalized university:', normalizedUniversity);
     
     let expectedDomain = '';
     let universityDisplayName = '';
@@ -230,15 +241,18 @@ const requestUniversityVerification = async (req, res) => {
       universityDisplayName = 'KLU';
     } else {
       // Log the actual university value for debugging
-      console.log('Invalid university value:', user.university, 'Normalized:', normalizedUniversity);
+      console.log('❌ Invalid university value:', user.university, 'Normalized:', normalizedUniversity);
       return res.status(400).json({
         success: false,
         message: `Invalid university "${user.university}". Only SRM AP and KLU are supported. Please update your profile with a valid university.`,
       });
     }
 
+    console.log('📧 Expected domain:', expectedDomain);
+
     // Strict domain validation
     if (!normalizedEmail.endsWith(expectedDomain)) {
+      console.log('❌ Domain validation failed. Email ends with:', normalizedEmail.substring(normalizedEmail.lastIndexOf('@')));
       return res.status(400).json({
         success: false,
         message: `Email must end with ${expectedDomain} for ${universityDisplayName}`,
@@ -247,13 +261,16 @@ const requestUniversityVerification = async (req, res) => {
 
     // Generate 6-digit OTP
     const otpCode = generateOtp();
+    console.log('📧 Generated OTP:', otpCode);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
     // Store OTP and pending email in user document
+    console.log('📧 Saving OTP to database');
     user.universityVerificationOtp = otpCode;
     user.universityVerificationOtpExpiry = expiresAt;
     user.pendingUniversityEmail = normalizedEmail;
     await user.save();
+    console.log('✅ OTP saved successfully');
 
     // Send OTP email via Brevo
     const emailSubject = 'UniHub University Email Verification';
@@ -328,9 +345,14 @@ const requestUniversityVerification = async (req, res) => {
     });
   } catch (error) {
     console.error('Request university verification error:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Return detailed error message for debugging
+    const errorMessage = error.message || 'Failed to send verification OTP. Please try again.';
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to send verification OTP. Please try again.',
+      message: errorMessage,
     });
   }
 };

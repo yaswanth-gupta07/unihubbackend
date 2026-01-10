@@ -86,7 +86,7 @@ const createApplication = async (req, res) => {
       });
     }
 
-    // Create application
+    // Create applicationF
     const application = await Application.create({
       jobId,
       freelancerId: req.user._id,
