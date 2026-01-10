@@ -125,7 +125,18 @@ const updateProfile = async (req, res) => {
 
     // Only set university if it's initial setup (user doesn't have one yet)
     if (isInitialSetup) {
-      updateData.university = university.trim();
+      // Normalize university value to match enum values (SRM_AP, KLU)
+      const normalizedUniversity = university.trim().toUpperCase().replace(/\s+/g, '_');
+      if (normalizedUniversity === 'SRM_AP' || normalizedUniversity === 'SRMAP') {
+        updateData.university = 'SRM_AP';
+      } else if (normalizedUniversity === 'KLU') {
+        updateData.university = 'KLU';
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid university "${university}". Only SRM AP and KLU are supported.`,
+        });
+      }
     }
     // If university is provided but user already has one, ignore it (already validated above)
 
@@ -264,6 +275,14 @@ const requestUniversityVerification = async (req, res) => {
     console.log('📧 Generated OTP:', otpCode);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
+    // Normalize university field to match enum values before saving
+    // This fixes cases where university is stored as "SRM AP" instead of "SRM_AP"
+    if (normalizedUniversity === 'SRM_AP' || normalizedUniversity === 'SRMAP') {
+      user.university = 'SRM_AP';
+    } else if (normalizedUniversity === 'KLU') {
+      user.university = 'KLU';
+    }
+
     // Store OTP and pending email in user document
     console.log('📧 Saving OTP to database');
     user.universityVerificationOtp = otpCode;
@@ -398,6 +417,15 @@ const verifyUniversityEmail = async (req, res) => {
 
     // Check if OTP is expired
     if (!user.universityVerificationOtpExpiry || new Date() > user.universityVerificationOtpExpiry) {
+      // Normalize university field to match enum values before saving
+      if (user.university) {
+        const normalizedUniversity = user.university.trim().toUpperCase().replace(/\s+/g, '_');
+        if (normalizedUniversity === 'SRM_AP' || normalizedUniversity === 'SRMAP') {
+          user.university = 'SRM_AP';
+        } else if (normalizedUniversity === 'KLU') {
+          user.university = 'KLU';
+        }
+      }
       // Clear expired OTP
       user.universityVerificationOtp = null;
       user.universityVerificationOtpExpiry = null;
@@ -457,6 +485,16 @@ const verifyUniversityEmail = async (req, res) => {
     }
 
     const verifiedEmail = user.pendingUniversityEmail;
+
+    // Normalize university field to match enum values before saving
+    if (user.university) {
+      const normalizedUniversity = user.university.trim().toUpperCase().replace(/\s+/g, '_');
+      if (normalizedUniversity === 'SRM_AP' || normalizedUniversity === 'SRMAP') {
+        user.university = 'SRM_AP';
+      } else if (normalizedUniversity === 'KLU') {
+        user.university = 'KLU';
+      }
+    }
 
     // Mark as verified and save email
     user.isUniversityVerified = true;
