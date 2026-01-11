@@ -31,7 +31,7 @@ const showInterest = async (req, res) => {
       });
     }
 
-    const product = await Product.findById(req.params.id).populate('sellerId', 'name email');
+    const product = await Product.findById(req.params.id).populate('sellerId', 'name email university isUniversityVerified');
 
     if (!product) {
       return res.status(404).json({

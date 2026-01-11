@@ -55,7 +55,7 @@ const createProduct = async (req, res) => {
     });
 
     // Populate sellerId field
-    await product.populate('sellerId', 'name email university');
+    await product.populate('sellerId', 'name email university isUniversityVerified');
 
     res.status(201).json({
       success: true,
@@ -124,7 +124,7 @@ const getProducts = async (req, res) => {
 
     // Fetch products with pagination
     const products = await Product.find(filter)
-      .populate('sellerId', 'name email university')
+      .populate('sellerId', 'name email university isUniversityVerified')
       .sort({ createdAt: -1 }) // Newest first
       .skip(skip)
       .limit(limit)
@@ -176,7 +176,7 @@ const getProductById = async (req, res) => {
     }
 
     const product = await Product.findById(req.params.id)
-      .populate('sellerId', 'name email university')
+      .populate('sellerId', 'name email university isUniversityVerified')
       .lean(); // Use lean() for better performance (read-only query)
 
     if (!product) {
@@ -240,7 +240,7 @@ const getMyProducts = async (req, res) => {
     const total = await Product.countDocuments(query);
 
     const products = await Product.find(query)
-      .populate('sellerId', 'name email')
+      .populate('sellerId', 'name email university isUniversityVerified')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -365,7 +365,7 @@ const updateProduct = async (req, res) => {
     // sellerId, universityId, createdAt are NOT changed
 
     await product.save();
-    await product.populate('sellerId', 'name email university');
+    await product.populate('sellerId', 'name email university isUniversityVerified');
 
     res.status(200).json({
       success: true,
@@ -396,7 +396,7 @@ const reserveProduct = async (req, res) => {
       });
     }
 
-    const product = await Product.findById(req.params.id).populate('sellerId', 'name email');
+    const product = await Product.findById(req.params.id).populate('sellerId', 'name email university isUniversityVerified');
 
     if (!product) {
       return res.status(404).json({
@@ -453,7 +453,7 @@ const reserveProduct = async (req, res) => {
  */
 const markProductSold = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate('sellerId', 'name email');
+    const product = await Product.findById(req.params.id).populate('sellerId', 'name email university isUniversityVerified');
 
     if (!product) {
       return res.status(404).json({
