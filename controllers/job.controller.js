@@ -49,7 +49,7 @@ const createJob = async (req, res) => {
     });
 
     // Populate postedBy field
-    await job.populate('postedBy', 'name email');
+    await job.populate('postedBy', 'name email university isUniversityVerified');
 
     res.status(201).json({
       success: true,
